@@ -1,5 +1,5 @@
 import streamlit as st
-import requests
+from planner import generate_workout_plan, PlanGenerationError,WorkoutRequest
 
 #browser caption
 st.set_page_config(page_title="WPG", page_icon="💪", layout="centered", initial_sidebar_state="collapsed")
@@ -55,12 +55,12 @@ if st.session_state.step == 1:
 
     if next_clicked:
 
-        if not name.strip() or age is None or sex == "Select":
+        if not (name or "").strip() or age is None or sex == "Select":
             st.error("Please complete all fields.")
 
         else:
             # Save personal information
-            st.session_state.name = name.strip()
+            st.session_state.name = (name or "").strip()
             st.session_state.age = age
             st.session_state.sex = sex
 
@@ -197,7 +197,6 @@ elif st.session_state.step == 3:
         submit_clicked = st.form_submit_button("Submit")
 
     if submit_clicked:
-
         if (
             goal == "Select"
             or experience == "Select"
@@ -214,38 +213,34 @@ elif st.session_state.step == 3:
             st.session_state.more = more
 
             # Collect information from all 3 pages
-            workout_profile = {
-                "name": st.session_state.name,
-                "age": st.session_state.age,
-                "sex": st.session_state.sex,
-                "height": st.session_state.height,
-                "weight": st.session_state.weight,
-                "activity": st.session_state.activity,
-                "fitness_goal": goal,
-                "experience_level": experience,
-                "days_per_week": days,
-                "equipment": equipment,
-                "limitations": limitations,
-                "more" : more
-
-            }
+            request = WorkoutRequest(
+                name=st.session_state.name,
+                age=st.session_state.age,
+                sex=st.session_state.sex,
+                height=st.session_state.height,
+                weight=st.session_state.weight,
+                activity=st.session_state.activity,
+                fitness_goal=goal,
+                experience_level=experience,
+                days_per_week=days,
+                equipment=equipment,
+                limitations=limitations or "",
+                more=more or "",
+            )
 
             st.success("Workout profile submitted!")
-
-        if st.button("Back", key="back_to_page2"):
-            st.session_state.step = 2
-            st.rerun()
-
-        st.session_state.pop("workout_plan",None)
-        try:
-            with st.spinner("Generating Workout Plan"):
-                response = requests.post("http://127.0.0.1:8000/workout",json = workout_profile,timeout=90)
-                response.raise_for_status()
-                result = response.json()
-                st.session_state.workout_plan = result["workout_plan"]
-        except Exception as e:
-            st.error(e)
-
+            st.session_state.pop("workout_plan", None)
+        
+            try:
+                with st.spinner("Generating Workout Plan"):
+                    response = generate_workout_plan(request)
+                    st.session_state.workout_plan = response
+            except PlanGenerationError as e:
+                st.error(e)
+            
+    if st.button("Back", key="back_to_page2"):
+        st.session_state.step = 2
+        st.rerun()
 
     if "workout_plan" in st.session_state:
 
